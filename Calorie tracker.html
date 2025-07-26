@@ -41,21 +41,36 @@
             </div>
         </header>
 
-        <!-- Login Prompt -->
-        <div id="login-prompt" class="text-center py-12 bg-white rounded-xl shadow-lg">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-6">Welcome!</h2>
-            <div class="max-w-xs mx-auto">
+        <!-- Login / Sign Up Prompt -->
+        <div id="login-container" class="text-center py-12 bg-white rounded-xl shadow-lg">
+            <div id="login-form" class="max-w-xs mx-auto">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6">Login</h2>
                 <div class="mb-4">
-                    <input type="text" id="username" placeholder="Username" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="email" id="login-email" placeholder="Email" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div class="mb-6">
-                    <input type="password" id="password" placeholder="Password" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="password" id="login-password" placeholder="Password" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <button id="loginBtn" class="w-full bg-indigo-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-300">
                     Login
                 </button>
-                <p id="login-error" class="text-red-500 text-sm mt-4 hidden">Invalid username or password.</p>
+                <p class="mt-4 text-sm">Don't have an account? <button id="showSignUpBtn" class="text-blue-600 hover:underline">Sign Up</button></p>
             </div>
+            
+            <div id="signup-form" class="max-w-xs mx-auto hidden">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6">Sign Up</h2>
+                <div class="mb-4">
+                    <input type="email" id="signup-email" placeholder="Email" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="mb-6">
+                    <input type="password" id="signup-password" placeholder="Password (min. 6 characters)" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <button id="signUpBtn" class="w-full bg-green-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-300">
+                    Create Account
+                </button>
+                <p class="mt-4 text-sm">Already have an account? <button id="showLoginBtn" class="text-blue-600 hover:underline">Login</button></p>
+            </div>
+            <p id="auth-error" class="text-red-500 text-sm mt-4 hidden"></p>
         </div>
 
         <main id="app-content" class="hidden">
@@ -136,7 +151,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signOut, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- DOM Elements ---
@@ -152,12 +167,16 @@
         const totalProteinEl = document.getElementById('totalProtein');
         const placeholderRow = document.getElementById('placeholder-row');
         const authContainer = document.getElementById('auth-container');
-        const loginPrompt = document.getElementById('login-prompt');
+        const loginContainer = document.getElementById('login-container');
         const appContent = document.getElementById('app-content');
+        const loginForm = document.getElementById('login-form');
+        const signupForm = document.getElementById('signup-form');
         const loginBtn = document.getElementById('loginBtn');
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const loginError = document.getElementById('login-error');
+        const signUpBtn = document.getElementById('signUpBtn');
+        const showSignUpBtn = document.getElementById('showSignUpBtn');
+        const showLoginBtn = document.getElementById('showLoginBtn');
+        const authError = document.getElementById('auth-error');
+
 
         // --- App State ---
         let db, auth;
@@ -167,14 +186,16 @@
         let unsubscribe; 
 
         // --- Firebase Config ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'calorie-tracker-app';
-        let firebaseConfig;
-        try {
-            firebaseConfig = JSON.parse(__firebase_config);
-        } catch (e) {
-            console.error("Firebase config is not available or invalid.");
-            firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "..." };
-        }
+        // This configuration object now uses your provided project details.
+        const firebaseConfig = {
+            apiKey: "AIzaSyABsevePnCUAMebrrvS9fdXJ6xm76kloUs",
+            authDomain: "calorietracker-2904.firebaseapp.com",
+            projectId: "calorietracker-2904",
+            storageBucket: "calorietracker-2904.appspot.com",
+            messagingSenderId: "132484925161",
+            appId: "1:132484925161:web:9627e22a0aec24233c9278",
+            measurementId: "G-9ES6GGE529"
+        };
         
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', async () => {
@@ -182,79 +203,77 @@
             db = getFirestore(app);
             auth = getAuth(app);
             
+            console.log("App is now connected to Firebase project:", firebaseConfig.projectId);
+
             setupEventListeners();
-            checkLoginState();
+            onAuthStateChanged(auth, handleAuthStateChange);
 
             const today = new Date().toISOString().split('T')[0];
             entryDate.value = today;
         });
         
-        // --- Simple Authentication ---
-        function handleLogin() {
-            const username = usernameInput.value;
-            const password = passwordInput.value;
-
-            if (username === "mkala033" && password === "calorietracker") {
-                sessionStorage.setItem('isLoggedIn', 'true');
-                loginError.classList.add('hidden');
-                initializeUserSession();
+        // --- Authentication Logic ---
+        function handleAuthStateChange(user) {
+            if (user) {
+                // User is signed in
+                userId = user.uid;
+                loginContainer.classList.add('hidden');
+                appContent.classList.remove('hidden');
+                authContainer.innerHTML = `
+                    <p class="text-gray-700">Welcome, ${user.email}!</p>
+                    <button id="signOutBtn" class="text-sm text-blue-600 hover:underline">Sign Out</button>
+                `;
+                document.getElementById('signOutBtn').addEventListener('click', () => signOut(auth));
+                listenToEntries(entryDate.value);
             } else {
-                loginError.classList.remove('hidden');
+                // User is signed out
+                userId = null;
+                if (unsubscribe) unsubscribe();
+                appContent.classList.add('hidden');
+                loginContainer.classList.remove('hidden');
+                authContainer.innerHTML = '';
+                clearTable();
             }
         }
         
-        async function handleLogout() {
-            sessionStorage.removeItem('isLoggedIn');
-            if (unsubscribe) unsubscribe();
-            if (auth.currentUser) {
-                await signOut(auth);
-            }
-            showLogin();
-        }
+        async function handleSignUp(e) {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            authError.classList.add('hidden');
 
-        function showLogin() {
-            appContent.classList.add('hidden');
-            loginPrompt.classList.remove('hidden');
-            authContainer.innerHTML = '';
-            clearTable();
-        }
-
-        function showApp() {
-            loginPrompt.classList.add('hidden');
-            appContent.classList.remove('hidden');
-            authContainer.innerHTML = `
-                <p class="text-gray-700">Welcome, mkala033!</p>
-                <button id="signOutBtn" class="text-sm text-blue-600 hover:underline">Sign Out</button>
-            `;
-            document.getElementById('signOutBtn').addEventListener('click', handleLogout);
-        }
-
-        async function initializeUserSession() {
-            showApp();
-            // Use a static user ID for this single-user setup
-            userId = 'user_mkala033';
-            
-            // We still need to authenticate with Firebase to obey security rules
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                   await signInWithCustomToken(auth, __initial_auth_token);
+                await createUserWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                if (error.code === 'auth/operation-not-allowed') {
+                     authError.textContent = `Sign-up disabled in project: ${firebaseConfig.projectId}. Please enable Email/Password provider in the Firebase console.`;
                 } else {
-                   await signInAnonymously(auth);
+                    authError.textContent = error.message;
                 }
-                 listenToEntries(entryDate.value);
-            } catch(error) {
-                console.error("Firebase anonymous sign-in failed:", error);
-                alert("Could not connect to the database.");
-                handleLogout();
+                authError.classList.remove('hidden');
+                console.error("Sign up failed:", error);
             }
         }
 
-        function checkLoginState() {
-            if (sessionStorage.getItem('isLoggedIn') === 'true') {
-                initializeUserSession();
-            } else {
-                showLogin();
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            authError.classList.add('hidden');
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                authError.textContent = "Invalid email or password.";
+                authError.classList.remove('hidden');
+                console.error("Login failed:", error);
             }
+        }
+
+        function toggleAuthForms() {
+            loginForm.classList.toggle('hidden');
+            signupForm.classList.toggle('hidden');
+            authError.classList.add('hidden');
         }
 
         // --- Firestore Listener ---
@@ -262,6 +281,7 @@
             if (!userId) return;
             if (unsubscribe) unsubscribe();
             
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'calorie-tracker-app';
             const docRef = doc(db, "artifacts", appId, "users", userId, "logs", date);
             unsubscribe = onSnapshot(docRef, (docSnap) => {
                 const dayData = docSnap.exists() ? docSnap.data().entries : [];
@@ -356,7 +376,8 @@
             } else {
                 currentEntries.push(newEntry);
             }
-
+            
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'calorie-tracker-app';
             const docRef = doc(db, "artifacts", appId, "users", userId, "logs", date);
             try {
                 await setDoc(docRef, { entries: currentEntries });
@@ -389,6 +410,7 @@
             const currentEntries = entries[date] ? [...entries[date]] : [];
             currentEntries.splice(index, 1);
             
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'calorie-tracker-app';
             const docRef = doc(db, "artifacts", appId, "users", userId, "logs", date);
             try {
                 if (currentEntries.length > 0) {
@@ -408,9 +430,10 @@
         // --- Event Listeners ---
         function setupEventListeners() {
             loginBtn.addEventListener('click', handleLogin);
-            passwordInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') handleLogin();
-            });
+            signUpBtn.addEventListener('click', handleSignUp);
+            showLoginBtn.addEventListener('click', toggleAuthForms);
+            showSignUpBtn.addEventListener('click', toggleAuthForms);
+
             addEntryBtn.addEventListener('click', saveEntry);
             cancelEditBtn.addEventListener('click', resetForm);
             protein.addEventListener('keydown', (e) => {
